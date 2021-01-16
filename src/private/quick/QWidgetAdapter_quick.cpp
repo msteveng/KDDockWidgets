@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -50,6 +50,8 @@ public:
         eventSource->installEventFilter(this);
     }
 
+    ~MouseEventRedirector() override;
+
     bool eventFilter(QObject *, QEvent *ev) override
     {
         if (QMouseEvent *me = mouseEvent(ev))
@@ -60,6 +62,8 @@ public:
 
     QObject *const m_eventTarget;
 };
+
+MouseEventRedirector::~MouseEventRedirector() = default;
 
 }
 
@@ -135,7 +139,7 @@ void QWidgetAdapter::itemChange(QQuickItem::ItemChange change, const QQuickItem:
     case QQuickItem::ItemParentHasChanged: {
         QEvent ev(QEvent::ParentChange);
         qApp->sendEvent(this, &ev); // Not calling event() directly, otherwise it would skip event filters
-        Q_EMIT parentChanged();
+        Q_EMIT parentChanged(this);
         break;
     }
     case QQuickItem::ItemVisibleHasChanged: {

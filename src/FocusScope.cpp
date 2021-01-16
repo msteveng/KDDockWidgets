@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -29,9 +29,8 @@
 using namespace KDDockWidgets;
 
 // Our Private inherits from QObject since FocusScope can't (Since Frame is already QObject)
-class FocusScope::Private : public QObject
+class FocusScope::Private : public QObject //clazy:exclude=missing-qobject-macro (breaks unity build with earlier cmake due to including .moc here.)
 {
-    Q_OBJECT
 public:
     Private(FocusScope *qq, QWidgetAdapter *thisWidget)
         : q(qq)
@@ -174,5 +173,3 @@ void FocusScope::Private::emitDockWidgetFocusChanged()
         p = KDDockWidgets::Private::parentWidget(p);
     }
 }
-
-#include <FocusScope.moc>

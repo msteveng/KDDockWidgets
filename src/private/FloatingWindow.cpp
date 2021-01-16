@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -94,7 +94,7 @@ static Qt::WindowFlags windowFlagsToUse()
 
 static MainWindowBase* hackFindParentHarder(Frame *frame, MainWindowBase *candidateParent)
 {
-    if (Config::self().flags() & Config::InternalFlag_DontUseParentForFloatingWindows) {
+    if (Config::self().internalFlags() & Config::InternalFlag_DontUseParentForFloatingWindows) {
         return nullptr;
     }
 
@@ -128,7 +128,7 @@ static MainWindowBase* hackFindParentHarder(Frame *frame, MainWindowBase *candid
 
 MainWindowBase *actualParent(MainWindowBase *candidate)
 {
-    return (Config::self().flags() & Config::InternalFlag_DontUseParentForFloatingWindows)
+    return (Config::self().internalFlags() & Config::InternalFlag_DontUseParentForFloatingWindows)
             ? nullptr
             : candidate;
 }
@@ -341,6 +341,14 @@ bool FloatingWindow::hasSingleDockWidget() const
     return frame->dockWidgetCount() == 1;
 }
 
+Frame *FloatingWindow::singleFrame() const
+{
+    const Frame::List frames = this->frames();
+
+    return frames.isEmpty() ? nullptr
+                            : frames.first();
+}
+
 bool FloatingWindow::beingDeleted() const
 {
     if (m_deleteScheduled || m_inDtor)
@@ -395,6 +403,8 @@ void FloatingWindow::updateTitleBarVisibility()
 
         for (Frame *frame : frames())
             frame->updateTitleBarVisibility();
+
+        m_titleBar->updateButtons();
     } else {
         visible = false;
     }
@@ -500,4 +510,36 @@ bool FloatingWindow::event(QEvent *ev)
     }
 
     return QWidgetAdapter::event(ev);
+}
+
+bool FloatingWindow::allDockWidgetsHave(DockWidgetBase::Option option) const
+{
+    const Frame::List frames = this->frames();
+    return std::all_of(frames.begin(), frames.end(), [option] (Frame *frame) {
+        return frame->allDockWidgetsHave(option);
+    });
+}
+
+bool FloatingWindow::anyDockWidgetsHas(DockWidgetBase::Option option) const
+{
+    const Frame::List frames = this->frames();
+    return std::any_of(frames.begin(), frames.end(), [option] (Frame *frame) {
+        return frame->anyDockWidgetsHas(option);
+    });
+}
+
+bool FloatingWindow::allDockWidgetsHave(DockWidgetBase::LayoutSaverOption option) const
+{
+    const Frame::List frames = this->frames();
+    return std::all_of(frames.begin(), frames.end(), [option] (Frame *frame) {
+        return frame->allDockWidgetsHave(option);
+    });
+}
+
+bool FloatingWindow::anyDockWidgetsHas(DockWidgetBase::LayoutSaverOption option) const
+{
+    const Frame::List frames = this->frames();
+    return std::any_of(frames.begin(), frames.end(), [option] (Frame *frame) {
+        return frame->anyDockWidgetsHas(option);
+    });
 }

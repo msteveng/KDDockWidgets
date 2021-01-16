@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -70,11 +70,13 @@ KDDockWidgets::Tests::createMainWindow(QSize sz, KDDockWidgets::MainWindowOption
 }
 
 DockWidgetBase *KDDockWidgets::Tests::createDockWidget(const QString &name, QWidgetOrQuick *w,
-                                                       DockWidgetBase::Options options, bool show,
+                                                       DockWidgetBase::Options options,
+                                                       DockWidgetBase::LayoutSaverOptions layoutSaverOptions,
+                                                       bool show,
                                                        const QString &affinityName)
 {
     w->setFocusPolicy(Qt::StrongFocus);
-    auto dock = new DockWidgetType(name, options);
+    auto dock = new DockWidgetType(name, options, layoutSaverOptions);
     dock->setAffinityName(affinityName);
     dock->setWidget(w);
     dock->setObjectName(name);
@@ -132,7 +134,7 @@ std::unique_ptr<MainWindowBase> KDDockWidgets::Tests::createMainWindow(QVector<D
 
     int i = 0;
     for (DockDescriptor &desc : docks) {
-        desc.createdDock = createDockWidget(QStringLiteral("%1-%2").arg(i).arg(count), createGuestWidget(i), {}, false);
+        desc.createdDock = createDockWidget(QStringLiteral("%1-%2").arg(i).arg(count), createGuestWidget(i), {}, {}, false);
         DockWidgetBase *relativeTo = nullptr;
         if (desc.relativeToIndex != -1)
             relativeTo = docks.at(desc.relativeToIndex).createdDock;

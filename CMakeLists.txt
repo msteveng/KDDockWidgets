@@ -1,7 +1,7 @@
 #
 # This file is part of KDDockWidgets.
 #
-# SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+# SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
 # Author: Sergio Martins <sergio.martins@kdab.com>
 #
 # SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -150,7 +150,7 @@ macro(set_compiler_flags targetName)
   endif()
 
   # Enable -Werror
-  if(NOT MSVC AND NOT ${PROJECT_NAME}_QT6 AND ${PROJECT_NAME}_WERROR)
+  if(NOT MSVC AND ${PROJECT_NAME}_WERROR)
     target_compile_options(${targetName} PRIVATE -Werror -Wno-error=deprecated-declarations)
   endif()
 

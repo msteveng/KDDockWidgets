@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -467,13 +467,13 @@ const Frame::List DockRegistry::frames() const
     return m_frames;
 }
 
-const QVector<FloatingWindow *> DockRegistry::floatingWindows() const
+const QVector<FloatingWindow *> DockRegistry::floatingWindows(bool includeBeingDeleted) const
 {
     // Returns all the FloatingWindow which aren't being deleted
     QVector<FloatingWindow *> result;
     result.reserve(m_floatingWindows.size());
     for (FloatingWindow *fw : m_floatingWindows) {
-        if (!fw->beingDeleted())
+        if (includeBeingDeleted || !fw->beingDeleted())
             result.push_back(fw);
     }
 

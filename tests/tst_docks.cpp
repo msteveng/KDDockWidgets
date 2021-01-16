@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -111,6 +111,7 @@ private Q_SLOTS:
     void tst_resizeWindow();
     void tst_restoreEmpty();
     void tst_restoreCentralFrame();
+    void tst_restoreMaximizedState();
     void tst_shutdown();
     void tst_doubleClose();
     void tst_dockInternal();
@@ -130,8 +131,13 @@ private Q_SLOTS:
     void tst_lastFloatingPositionIsRestored();
     void tst_restoreSimple();
     void tst_restoreSimplest();
+    void tst_restoreNonClosable();
     void tst_invalidLayoutAfterRestore();
+    void tst_dontCloseDockWidgetBeforeRestore();
+    void tst_dontCloseDockWidgetBeforeRestore2();
+    void tst_dontCloseDockWidgetBeforeRestore3();
 
+    void tst_closeOnlyCurrentTab();
     void tst_tabWidgetCurrentIndex();
     void tst_doubleClickTabToDetach();
     void tst_propagateResize2();
@@ -237,6 +243,7 @@ private Q_SLOTS:
     void tst_dragByTabBar_data();
     void tst_titleBarFocusedWhenTabsChange();
     void tst_dock2FloatingWidgetsTabbed();
+    void tst_deleteOnClose();
 
 #ifdef KDDOCKWIDGETS_QTWIDGETS
     // TODO: Port these to QtQuick
@@ -252,6 +259,7 @@ private Q_SLOTS:
     void tst_negativeAnchorPositionWhenEmbedded_data();
     void tst_closeRemovesFromSideBar();
     void tst_restoreSideBar();
+    void tst_toggleActionOnSideBar();
 
     // And fix these
     void tst_floatingWindowDeleted();
@@ -397,12 +405,7 @@ void TestDocks::tst_restoreSimple()
     dock3->morphIntoFloatingWindow(); // as it would take 1 event loop. Do it now so we can compare already.
 
     QCOMPARE(dock3->window()->pos(), dock3FloatingPoint);
-
-    // Cleanup
-    dock3->deleteLater();
-    QVERIFY(Testing::waitForDeleted(dock3));
 }
-
 
 void TestDocks::tst_doesntHaveNativeTitleBar()
 {
@@ -540,8 +543,8 @@ void TestDocks::tst_detachPos()
     // Tests a situation where detaching a dock widget would send it to a bogus position
     EnsureTopLevelsDeleted e;
     auto m = createMainWindow(QSize(501, 500), MainWindowOption_None);
-    auto dock1 = createDockWidget("1", new MyWidget(QStringLiteral("1"), Qt::black), {}, /** show = */false); // we're creating the dock widgets without showing them as floating initially, so it doesn't record the previous floating position
-    auto dock2 = createDockWidget("2", new MyWidget(QStringLiteral("2"), Qt::black), {}, /** show = */false);
+    auto dock1 = createDockWidget("1", new MyWidget(QStringLiteral("1"), Qt::black), {}, {}, /** show = */false); // we're creating the dock widgets without showing them as floating initially, so it doesn't record the previous floating position
+    auto dock2 = createDockWidget("2", new MyWidget(QStringLiteral("2"), Qt::black), {}, {}, /** show = */false);
 
     QVERIFY(!dock1->isVisible());
     QVERIFY(!dock2->isVisible());
@@ -824,6 +827,24 @@ void TestDocks::tst_restoreCentralFrame()
     frame = static_cast<Frame *>(item->guestAsQObject());
     QCOMPARE(frame->options(), FrameOption_IsCentralFrame | FrameOption_AlwaysShowsTabs);
     QVERIFY(!frame->titleBar()->isVisible());
+}
+
+void TestDocks::tst_restoreMaximizedState()
+{
+    EnsureTopLevelsDeleted e;
+    auto m = createMainWindow();
+
+    m->showMaximized();
+
+    QCOMPARE(m->windowHandle()->windowState(), Qt::WindowMaximized);
+    LayoutSaver saver;
+
+    const QByteArray saved = saver.serializeLayout();
+    m->showNormal();
+    QVERIFY(m->windowHandle()->windowState() != Qt::WindowMaximized);
+
+    saver.restoreLayout(saved);
+    QCOMPARE(m->windowHandle()->windowState(), Qt::WindowMaximized);
 }
 
 void TestDocks::tst_setFloatingSimple()
@@ -1290,7 +1311,7 @@ void TestDocks::tst_28NestedWidgets()
 
     int i = 0;
     for (DockDescriptor &desc : docksToCreate) {
-        desc.createdDock = createDockWidget(QString("%1").arg(i), new QPushButton(QString("%1").arg(i).toLatin1()), {}, false);
+        desc.createdDock = createDockWidget(QString("%1").arg(i), new QPushButton(QString("%1").arg(i).toLatin1()), {}, {}, false);
 
         DockWidgetBase *relativeTo = nullptr;
         if (desc.relativeToIndex != -1)
@@ -1362,7 +1383,7 @@ void TestDocks::tst_startHidden()
 
     EnsureTopLevelsDeleted e;
     auto m = createMainWindow(QSize(800, 500), MainWindowOption_None);
-    auto dock1 = createDockWidget("1", new QPushButton("1"), {}, /*show=*/false);
+    auto dock1 = createDockWidget("1", new QPushButton("1"), {}, {}, /*show=*/false);
     m->addDockWidget(dock1, Location_OnRight, nullptr, InitialVisibilityOption::StartHidden);
     delete dock1;
 }
@@ -1372,8 +1393,8 @@ void TestDocks::tst_startHidden2()
     EnsureTopLevelsDeleted e;
     {
         auto m = createMainWindow(QSize(800, 500), MainWindowOption_None);
-        auto dock1 = createDockWidget("dock1", new QPushButton("one"), {}, false);
-        auto dock2 = createDockWidget("dock2", new QPushButton("two"), {}, false);
+        auto dock1 = createDockWidget("dock1", new QPushButton("one"), {}, {}, false);
+        auto dock2 = createDockWidget("dock2", new QPushButton("two"), {}, {}, false);
 
         auto dropArea = m->dropArea();
         MultiSplitter *layout = dropArea;
@@ -1401,9 +1422,9 @@ void TestDocks::tst_startHidden2()
 
     {
         auto m = createMainWindow(QSize(800, 500), MainWindowOption_None);
-        auto dock1 = createDockWidget("dock1", new QPushButton("one"), {}, false);
-        auto dock2 = createDockWidget("dock2", new QPushButton("two"), {}, false);
-        auto dock3 = createDockWidget("dock3", new QPushButton("three"), {}, false);
+        auto dock1 = createDockWidget("dock1", new QPushButton("one"), {}, {}, false);
+        auto dock2 = createDockWidget("dock2", new QPushButton("two"), {}, {}, false);
+        auto dock3 = createDockWidget("dock3", new QPushButton("three"), {}, {}, false);
 
         auto dropArea = m->dropArea();
         MultiSplitter *layout = dropArea;
@@ -1485,9 +1506,9 @@ void TestDocks::tst_negativeAnchorPosition2()
     auto dropArea = m->dropArea();
     MultiSplitter *layout = dropArea;
 
-    auto dock1 = createDockWidget("1", new QPushButton("1"), {}, /*show=*/false);
-    auto dock2 = createDockWidget("2", new QPushButton("2"), {}, /*show=*/false);
-    auto dock3 = createDockWidget("3", new QPushButton("3"), {}, /*show=*/false);
+    auto dock1 = createDockWidget("1", new QPushButton("1"), {}, {}, /*show=*/false);
+    auto dock2 = createDockWidget("2", new QPushButton("2"), {}, {}, /*show=*/false);
+    auto dock3 = createDockWidget("3", new QPushButton("3"), {}, {}, /*show=*/false);
 
     m->addDockWidget(dock1, Location_OnLeft);
     m->addDockWidget(dock2, Location_OnRight, nullptr, InitialVisibilityOption::StartHidden);
@@ -1699,8 +1720,8 @@ void TestDocks::tst_addAsPlaceholder()
 {
     EnsureTopLevelsDeleted e;
     auto m = createMainWindow(QSize(800, 500), MainWindowOption_None);
-    auto dock1 = createDockWidget("dock1", new QPushButton("one"), {}, false);
-    auto dock2 = createDockWidget("dock2", new QPushButton("two"), {}, false);
+    auto dock1 = createDockWidget("dock1", new QPushButton("one"), {}, {}, false);
+    auto dock2 = createDockWidget("dock2", new QPushButton("two"), {}, {}, false);
 
     m->addDockWidget(dock1, Location_OnBottom);
     m->addDockWidget(dock2, Location_OnTop, nullptr, InitialVisibilityOption::StartHidden);
@@ -1729,7 +1750,7 @@ void TestDocks::tst_removeItem()
     EnsureTopLevelsDeleted e;
     auto m = createMainWindow(QSize(800, 500), MainWindowOption_None);
     auto dock1 = createDockWidget("dock1", new QPushButton("one"));
-    auto dock2 = createDockWidget("dock2", new QPushButton("two"), {}, false);
+    auto dock2 = createDockWidget("dock2", new QPushButton("two"), {}, {}, false);
     auto dock3 = createDockWidget("dock3", new QPushButton("three"));
 
     m->addDockWidget(dock1, Location_OnBottom);
@@ -3456,6 +3477,57 @@ void TestDocks::tst_restoreSimplest()
    QVERIFY(layout->checkSanity());
 }
 
+void TestDocks::tst_restoreNonClosable()
+{
+    // Tests that restoring state also restores the Option_NotClosable option
+
+    {
+        // Basic case:
+
+        EnsureTopLevelsDeleted e;
+        auto m = createMainWindow(QSize(800, 500), MainWindowOption_None);
+        auto dock1 = createDockWidget("one", new QTextEdit(), DockWidgetBase::Option_NotClosable);
+        QCOMPARE(dock1->options(), DockWidgetBase::Option_NotClosable);
+
+        LayoutSaver saver;
+        const QByteArray saved = saver.serializeLayout();
+        QVERIFY(saver.restoreLayout(saved));
+        QCOMPARE(dock1->options(), DockWidgetBase::Option_NotClosable);
+    }
+
+    {
+        // Case from issue #137
+        auto m = createMainWindow(QSize(800, 500), MainWindowOption_None);
+
+        auto dock1 = createDockWidget("1", new QTextEdit());
+        auto dock2 = createDockWidget("2", new QTextEdit(), DockWidgetBase::Option_NotClosable);
+        auto dock3 = createDockWidget("3", new QTextEdit());
+
+        m->addDockWidget(dock1, Location_OnLeft);
+        m->addDockWidget(dock2, Location_OnLeft);
+        m->addDockWidget(dock3, Location_OnLeft);
+
+        QCOMPARE(dock2->options(), DockWidgetBase::Option_NotClosable);
+        dock2->setFloating(true);
+        QCOMPARE(dock2->options(), DockWidgetBase::Option_NotClosable);
+
+        TitleBar *tb = dock2->frame()->actualTitleBar();
+        QVERIFY(tb->isVisible());
+        QVERIFY(!tb->closeButtonEnabled());
+
+        LayoutSaver saver;
+        const QByteArray saved = saver.serializeLayout();
+
+        QVERIFY(saver.restoreLayout(saved));
+        QCOMPARE(dock2->options(), DockWidgetBase::Option_NotClosable);
+
+        tb = dock2->frame()->actualTitleBar();
+        QVERIFY(tb->isVisible());
+
+        QVERIFY(!tb->closeButtonEnabled());
+    }
+}
+
 void TestDocks::tst_resizeViaAnchorsAfterPlaceholderCreation()
 {
     EnsureTopLevelsDeleted e;
@@ -3606,7 +3678,6 @@ void TestDocks::tst_restoreNestedAndTabbed()
         auto dock1 = createDockWidget("1", new QTextEdit());
         auto dock2 = createDockWidget("2", new QTextEdit());
         auto dock3 = createDockWidget("3", new QTextEdit());
-
         auto dock4 = createDockWidget("4", new QTextEdit());
         auto dock5 = createDockWidget("5", new QTextEdit());
         dock4->addDockWidgetAsTab(dock5);
@@ -3622,6 +3693,8 @@ void TestDocks::tst_restoreNestedAndTabbed()
         LayoutSaver saver;
         QVERIFY(saver.saveToFile(QStringLiteral("layout_tst_restoreNestedAndTabbed.json")));
         QVERIFY(layout->checkSanity());
+
+        delete dock4->window();
         // Let it be destroyed, we'll restore a new one
     }
 
@@ -3785,10 +3858,10 @@ void TestDocks::tst_restoreWithAffinity()
     auto m2 = createMainWindow(QSize(500, 500));
     m2->setAffinities({ "a2" });
 
-    auto dock1 = createDockWidget("1", new QPushButton("1"), {}, true, "a1");
+    auto dock1 = createDockWidget("1", new QPushButton("1"), {}, {}, true, "a1");
     m1->addDockWidget(dock1, Location_OnLeft);
 
-    auto dock2 = createDockWidget("2", new QPushButton("2"), {}, true, "a2");
+    auto dock2 = createDockWidget("2", new QPushButton("2"), {}, {}, true, "a2");
     dock2->setFloating(true);
     dock2->show();
 
@@ -3897,7 +3970,7 @@ void TestDocks::tst_restoreWithDockFactory()
 
     // Now try with a factory func
     DockWidgetFactoryFunc func = [] (const QString &) {
-        return createDockWidget("1", new QPushButton("1"), {}, /*show=*/ false);
+        return createDockWidget("1", new QPushButton("1"), {}, {}, /*show=*/ false);
     };
 
     KDDockWidgets::Config::self().setDockWidgetFactoryFunc(func);
@@ -3926,27 +3999,37 @@ void TestDocks::tst_addDockWidgetToMainWindow()
 
 void TestDocks::tst_addDockWidgetToContainingWindow()
 {
-    EnsureTopLevelsDeleted e;
+    { // Test with a floating window
+        EnsureTopLevelsDeleted e;
 
-    auto dock1 = createDockWidget("dock1", new QPushButton("one"));
-    auto dock2 = createDockWidget("dock2", new QPushButton("two"));
-    auto dock3 = createDockWidget("dock3", new QPushButton("three"));
+        auto dock1 = createDockWidget("dock1", new QPushButton("one"));
+        auto dock2 = createDockWidget("dock2", new QPushButton("two"));
+        auto dock3 = createDockWidget("dock3", new QPushButton("three"));
 
-    dock1->addDockWidgetToContainingWindow(dock2, Location_OnRight);
-    dock1->addDockWidgetToContainingWindow(dock3, Location_OnTop, dock2);
+        dock1->addDockWidgetToContainingWindow(dock2, Location_OnRight);
+        dock1->addDockWidgetToContainingWindow(dock3, Location_OnTop, dock2);
 
-    QCOMPARE(dock1->window(), dock2->window());
-    QCOMPARE(dock2->window(), dock3->window());
+        QCOMPARE(dock1->window(), dock2->window());
+        QCOMPARE(dock2->window(), dock3->window());
 
-    QVERIFY(dock3->frame()->QWidgetAdapter::y() < dock2->frame()->QWidgetAdapter::y());
-    QVERIFY(dock1->frame()->QWidgetAdapter::x() < dock2->frame()->QWidgetAdapter::x());
-    QCOMPARE(dock2->frame()->QWidgetAdapter::x(), dock3->frame()->QWidgetAdapter::x());
+        QVERIFY(dock3->frame()->QWidgetAdapter::y() < dock2->frame()->QWidgetAdapter::y());
+        QVERIFY(dock1->frame()->QWidgetAdapter::x() < dock2->frame()->QWidgetAdapter::x());
+        QCOMPARE(dock2->frame()->QWidgetAdapter::x(), dock3->frame()->QWidgetAdapter::x());
+    }
 
-    auto window = dock1->window();
-    delete dock1;
-    delete dock2;
-    delete dock3;
-    Testing::waitForDeleted(window);
+    { // Also test with a main window
+        EnsureTopLevelsDeleted e;
+
+        auto m = createMainWindow();
+        auto dock1 = createDockWidget("dock1", new QPushButton("one"));
+        auto dock2 = createDockWidget("dock2", new QPushButton("two"));
+
+        m->addDockWidget(dock1, Location_OnRight, nullptr);
+        dock1->addDockWidgetToContainingWindow(dock2, Location_OnRight);
+
+        QCOMPARE(dock1->window(), dock2->window());
+        QCOMPARE(m.get(), dock2->window());
+    }
 }
 
 void TestDocks::tst_notClosable()
@@ -4612,9 +4695,9 @@ void TestDocks::tst_stuckSeparator()
     QVERIFY(restorer.restoreFromFile(absoluteLayoutFileName));
 
     Frame *frame25 = dw25->frame();
-    ItemContainer *root = m1->multiSplitter()->rootItem();
+    ItemBoxContainer *root = m1->multiSplitter()->rootItem();
     Item *item25 = root->itemForWidget(frame25);
-    ItemContainer *container25 = item25->parentContainer();
+    ItemBoxContainer *container25 = item25->parentBoxContainer();
     Separator::List separators = container25->separators();
     QCOMPARE(separators.size(), 1);
 
@@ -4982,7 +5065,7 @@ void TestDocks::tst_closeRemovesFromSideBar()
 
     QVERIFY(!dw1->isOverlayed());
     QVERIFY(!dw1->isVisible());
-    QVERIFY(dw1->sideBarLocation() != SideBarLocation::None);
+    QVERIFY(dw1->isInSideBar());
 
     SideBar *sb = m1->sideBarForDockWidget(dw1);
     QVERIFY(sb);
@@ -5066,6 +5149,40 @@ void TestDocks::tst_restoreSideBar()
     delete fw1;
 }
 
+void TestDocks::tst_toggleActionOnSideBar()
+{
+    // When a dock widget is in the sidebar and we use DockWidget::toggleAction() then it should
+    // toggle visibility without removing it from the sidebar
+
+    EnsureTopLevelsDeleted e;
+    KDDockWidgets::Config::self().setFlags(KDDockWidgets::Config::Flag_AutoHideSupport);
+    auto m1 = createMainWindow(QSize(1000, 1000), MainWindowOption_None, "MW1");
+    auto dw1 = new DockWidgetType("1");
+    m1->addDockWidget(dw1, Location_OnBottom);
+    dw1->moveToSideBar();
+
+    QVERIFY(!dw1->isVisible());
+    QVERIFY(!dw1->isOverlayed());
+    QVERIFY(dw1->isInSideBar());
+    QVERIFY(!dw1->isInMainWindow());
+
+    QAction *action = dw1->toggleAction();
+    action->trigger();
+
+    QVERIFY(dw1->isVisible());
+    QVERIFY(dw1->isOverlayed());
+    QVERIFY(dw1->isInMainWindow());
+
+    QVERIFY(dw1->isInSideBar());
+    action->trigger();
+
+    QVERIFY(!dw1->isOverlayed());
+    QVERIFY(!dw1->isInMainWindow());
+
+    QVERIFY(dw1->isInSideBar());
+    QVERIFY(!dw1->isInMainWindow());
+}
+
 void TestDocks::tst_embeddedMainWindow()
 {
     EnsureTopLevelsDeleted e;
@@ -5115,7 +5232,7 @@ void TestDocks::tst_restoreEmbeddedMainWindow()
     QCOMPARE(window->size(), originalSize);
     window->mainWindow->multiSplitter()->checkSanity();
 
-    delete window;   
+    delete window;
 }
 
 void TestDocks::tst_negativeAnchorPositionWhenEmbedded_data()
@@ -5374,12 +5491,12 @@ void TestDocks::tst_maxSizePropagates2()
 
     Frame *frame1 = dock1->frame();
 
-    Layouting::ItemContainer *root = m1->multiSplitter()->rootItem();
+    Layouting::ItemBoxContainer *root = m1->multiSplitter()->rootItem();
     Item *item1 = root->itemForWidget(frame1);
     auto vertSep1 = root->separators().constFirst();
     const int min1 = root->minPosForSeparator_global(vertSep1);
 
-    ItemContainer *container1 = item1->parentContainer();
+    ItemBoxContainer *container1 = item1->parentBoxContainer();
     auto innerVertSep1 = container1->separators().constFirst();
     const int minInnerSep = container1->minPosForSeparator_global(innerVertSep1);
     const int maxInnerSep = container1->maxPosForSeparator_global(innerVertSep1);
@@ -5784,6 +5901,155 @@ void TestDocks::tst_invalidLayoutAfterRestore()
     layout->checkSanity();
 }
 
+void TestDocks::tst_dontCloseDockWidgetBeforeRestore()
+{
+      EnsureTopLevelsDeleted e;
+      auto m = createMainWindow();
+      auto dock1 = createDockWidget("dock1", new QPushButton("one"));
+      auto dock2 = createDockWidget("dock2", new QPushButton("two"), {}, DockWidgetBase::LayoutSaverOption::Skip);
+      auto dock3 = createDockWidget("dock3", new QPushButton("three"), {}, DockWidgetBase::LayoutSaverOption::Skip);
+      auto dock4 = createDockWidget("4", new QPushButton("4"), {}, {}, /*show=*/ false);
+
+      m->addDockWidget(dock1, Location_OnBottom);
+      m->addDockWidget(dock2, Location_OnBottom);
+
+      // Dock #3 floats, while #1 and #2 are docked.
+      dock3->setFloating(true);
+      QVERIFY(dock3->isOpen());
+      QVERIFY(dock3->isFloating());
+      QVERIFY(!dock3->isInMainWindow());
+
+      LayoutSaver saver;
+      const QByteArray saved = saver.serializeLayout();
+      dock3->close();
+
+      // Not open anymore
+      QVERIFY(!dock3->isOpen());
+
+      QVERIFY(saver.restoreLayout(saved));
+
+      // #3 is still closed, the restore will skip it
+      QVERIFY(!dock3->isOpen());
+      QVERIFY(!dock3->isInMainWindow());
+
+      auto dock5 = createDockWidget("5", new QPushButton("5"), {}, DockWidgetBase::LayoutSaverOption::Skip);
+
+      dock4->show();
+      dock5->show();
+
+      QVERIFY(saver.restoreLayout(saved));
+      QVERIFY(!dock4->isOpen());
+      QVERIFY(dock5->isOpen()); // #5 is still open, it ignored restore
+}
+
+void TestDocks::tst_dontCloseDockWidgetBeforeRestore2()
+{
+    // In this case we have a floating window with two dock widgets tabbed, both having LayoutSaverOption::Skip
+    // Meaning the whole window should be skipped
+
+    EnsureTopLevelsDeleted e;
+    auto dock2 = createDockWidget("dock2", new QPushButton("two"), {}, DockWidgetBase::LayoutSaverOption::Skip);
+    auto dock3 = createDockWidget("dock3", new QPushButton("three"), {}, DockWidgetBase::LayoutSaverOption::Skip);
+
+    dock2->close();
+    dock3->close();
+
+    LayoutSaver saver;
+    const QByteArray saved = saver.serializeLayout(); // This layout has 0 docks visible
+
+    dock2->show();
+    dock3->show();
+    QVERIFY(saver.restoreLayout(saved));
+    QVERIFY(dock2->isVisible()); // They're still visible
+    QVERIFY(dock3->isVisible());
+
+    // Now tab and restore again
+    dock2->addDockWidgetAsTab(dock3);
+    QVERIFY(saver.restoreLayout(saved));
+    QVERIFY(dock2->isOpen());
+    QVERIFY(dock3->isOpen());
+    QVERIFY(dock3->isVisible());
+    QCOMPARE(dock3->frame(), dock2->frame());
+}
+
+void TestDocks::tst_dontCloseDockWidgetBeforeRestore3()
+{
+    EnsureTopLevelsDeleted e;
+    auto m = createMainWindow();
+    auto dock1 = createDockWidget("dock1", new QPushButton("one"));
+    auto dock2 = createDockWidget("dock2", new QPushButton("two"), {}, DockWidgetBase::LayoutSaverOption::Skip);
+    dock1->close();
+    dock2->close();
+
+    LayoutSaver saver;
+    const QByteArray saved = saver.serializeLayout(); // This layout has 0 docks visible
+
+    m->addDockWidget(dock1, Location_OnBottom);
+    m->addDockWidget(dock2, Location_OnBottom);
+
+    QVERIFY(saver.restoreLayout(saved));
+
+    QVERIFY(!dock1->isOpen()); // Gets closed by the restore
+    QVERIFY(dock2->isOpen()); // Dock2 remains open, it ignores restore
+    QVERIFY(dock2->isFloating());
+}
+
+void TestDocks::tst_closeOnlyCurrentTab()
+{    
+    {
+        // Case of a floating window with tabs
+        EnsureTopLevelsDeleted e;
+        KDDockWidgets::Config::self().setFlags(KDDockWidgets::Config::Flag_CloseOnlyCurrentTab);
+
+        auto dock1 = createDockWidget("1", new QPushButton("1"));
+        auto dock2 = createDockWidget("2", new QPushButton("2"));
+        auto dock3 = createDockWidget("3", new QPushButton("3"));
+
+        /// Floating window with 3 tabs
+        dock1->addDockWidgetAsTab(dock2);
+        dock1->addDockWidgetAsTab(dock3);
+
+        TitleBar *tb = dock1->titleBar();
+        QVERIFY(tb->isVisible());
+        dock1->setAsCurrentTab();
+        Frame *frame = dock1->frame();
+        QCOMPARE(frame->currentIndex(), 0);
+
+        tb->onCloseClicked();
+
+        QVERIFY(!dock1->isOpen());
+        QVERIFY(dock2->isOpen());
+        QVERIFY(dock3->isOpen());
+    }
+
+    {
+        // Case of a floating window with tabs
+        EnsureTopLevelsDeleted e;
+        KDDockWidgets::Config::self().setFlags(KDDockWidgets::Config::Flag_CloseOnlyCurrentTab);
+
+        auto m = createMainWindow();
+        auto dock1 = createDockWidget("1", new QPushButton("1"));
+        auto dock2 = createDockWidget("2", new QPushButton("2"));
+        auto dock3 = createDockWidget("3", new QPushButton("3"));
+
+        m->addDockWidget(dock1, Location_OnLeft);
+        m->addDockWidget(dock2, Location_OnRight);
+
+        dock2->addDockWidgetAsTab(dock3);
+        Frame *frame = dock2->frame();
+        QCOMPARE(frame->currentIndex(), 1);
+        TitleBar *tb = frame->titleBar();
+        QVERIFY(tb->isVisible());
+        tb->onCloseClicked();
+
+        QVERIFY(!dock3->isOpen());
+        QVERIFY(dock2->isOpen());
+        QVERIFY(dock1->isOpen());
+        QCOMPARE(frame->dockWidgetCount(), 1);
+    }
+
+}
+
 void TestDocks::tst_tabWidgetCurrentIndex()
 {
     EnsureTopLevelsDeleted e;
@@ -5834,7 +6100,7 @@ void TestDocks::tst_doubleClickTabToDetach()
 
     auto tb = frame->tabWidget()->asWidget();
 
-    Tests::doubleClickOn(tb->mapToGlobal({ 20, 20 }), frame->window()->windowHandle());
+    Tests::doubleClickOn(tb->mapToGlobal(QPoint(20, 20)), frame->window()->windowHandle());
 
     QVERIFY(dock1->isFloating());
     QVERIFY(dock2->isFloating());
@@ -6478,6 +6744,39 @@ void TestDocks::tst_dock2FloatingWidgetsTabbed()
         delete dock3;
         QVERIFY(Testing::waitForDeleted(frame2));
         QVERIFY(Testing::waitForDeleted(fw3));
+    }
+}
+
+void TestDocks::tst_deleteOnClose()
+{
+    {
+        // Tests that DockWidget::close() deletes itself if Option_DeleteOnClose is set
+        QPointer<DockWidgetBase> dock1 = createDockWidget("1", new MyWidget2(QSize(400, 400)), DockWidgetBase::Option_DeleteOnClose);
+        dock1->show();
+        dock1->close();
+
+        QVERIFY(Testing::waitForDeleted(dock1));
+    }
+
+    {
+        // Tests that if it's closed via LayoutSaver it's also destroyed when having Option_DeleteOnClose
+
+        QPointer<DockWidgetBase> dock1 = createDockWidget("1", new MyWidget2(QSize(400, 400)), DockWidgetBase::Option_DeleteOnClose, {}, /*show=*/ false);
+        QPointer<DockWidgetBase> dock2 = createDockWidget("2", new MyWidget2(QSize(400, 400)), {}, {}, /*show=*/ false);
+        LayoutSaver saver;
+        const QByteArray saved = saver.serializeLayout();
+        dock1->show();
+        dock2->show();
+        QVERIFY(dock1->isVisible());
+        QVERIFY(dock2->isVisible());
+
+        QVERIFY(saver.restoreLayout(saved));
+        QVERIFY(!dock1->isVisible());
+        QVERIFY(!dock2->isVisible());
+
+        QVERIFY(Testing::waitForDeleted(dock1));
+        QVERIFY(dock2.data());
+        delete dock2;
     }
 }
 

@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -111,6 +111,14 @@ int main(int argc, char **argv)
     QCommandLineOption autoHideSupport("w", QCoreApplication::translate("main", "Enables auto-hide/minimization to side-bar support"));
     parser.addOption(autoHideSupport);
 
+    QCommandLineOption closeOnlyCurrentTab("close-only-current-tab",
+                                           QCoreApplication::translate("main", "The title bar's close button will only close the current tab instead of all. Illustrates using Config::Flag_CloseOnlyCurrentTab"));
+    parser.addOption(closeOnlyCurrentTab);
+
+    QCommandLineOption dontCloseBeforeRestore("dont-close-widget-before-restore",
+                                              QCoreApplication::translate("main", "DockWidget #5 wont be closed before a restore. Illustrates LayoutSaverOption::DontCloseBeforeRestore"));
+    parser.addOption(dontCloseBeforeRestore);
+
 #if defined(DOCKS_DEVELOPER_MODE)
     parser.addOption(centralFrame);
 
@@ -177,6 +185,9 @@ int main(int argc, char **argv)
     if (parser.isSet(autoHideSupport))
         flags |= Config::Flag_AutoHideSupport;
 
+    if (parser.isSet(closeOnlyCurrentTab))
+        flags |= Config::Flag_CloseOnlyCurrentTab;
+
     if (parser.isSet(noTitleBars))
         flags |= KDDockWidgets::Config::Flag_HideTitleBarWhenTabsVisible;
 
@@ -227,6 +238,7 @@ int main(int argc, char **argv)
     const bool restoreIsRelative = parser.isSet(relativeRestore);
     const bool nonDockableDockWidget9 = parser.isSet(nonDockable);
     const bool maxSizeForDockWidget8 = parser.isSet(maxSizeOption);
+    const bool dontCloseDockWidget5BeforeRestore = parser.isSet(dontCloseBeforeRestore);
     const bool usesMainWindowsWithAffinity = parser.isSet(multipleMainWindows);
 
 #ifdef KDDOCKWIDGETS_SUPPORTS_NESTED_MAINWINDOWS
@@ -236,7 +248,8 @@ int main(int argc, char **argv)
 #endif
 
     MyMainWindow mainWindow(QStringLiteral("MyMainWindow"), options, nonClosableDockWidget0,
-                            nonDockableDockWidget9, restoreIsRelative, maxSizeForDockWidget8);
+                            nonDockableDockWidget9, restoreIsRelative, maxSizeForDockWidget8,
+                            dontCloseDockWidget5BeforeRestore);
     mainWindow.setWindowTitle("Main Window 1");
     mainWindow.resize(1200, 1200);
     mainWindow.show();
@@ -254,7 +267,8 @@ int main(int argc, char **argv)
 
         auto mainWindow2 = new MyMainWindow(QStringLiteral("MyMainWindow-2"), options,
                                             nonClosableDockWidget0, nonDockableDockWidget9,
-                                            restoreIsRelative, maxSizeForDockWidget8, affinity);
+                                            restoreIsRelative, maxSizeForDockWidget8,
+                                            dontCloseDockWidget5BeforeRestore, affinity);
         if (affinity.isEmpty())
             mainWindow2->setWindowTitle("Main Window 2");
         else
@@ -267,7 +281,8 @@ int main(int argc, char **argv)
 
         const QString affinity = QStringLiteral("Inner-DockWidgets-2");
         auto dockableMainWindow = new MyMainWindow(QStringLiteral("MyMainWindow-2"), options,
-                                                   false, false, restoreIsRelative, false, affinity);
+                                                   false, false, restoreIsRelative, false,
+                                                   false, affinity);
 
         dockableMainWindow->setAffinities({ affinity });
 

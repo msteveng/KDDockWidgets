@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -99,7 +99,7 @@ public:
     FloatingWindow *floatingWindow() const { return m_floatingWindow; }
 
     /// @brief updates the close button enabled state
-    void updateCloseButton();
+    void updateButtons();
 
 Q_SIGNALS:
     void titleChanged();
@@ -123,7 +123,6 @@ protected:
     QString floatButtonToolTip() const;
 
     virtual void updateMaximizeButton() {}
-
     virtual void updateMinimizeButton() {}
     virtual void updateAutoHideButton() {}
 
@@ -140,6 +139,7 @@ protected:
 private:
     friend class ::TestDocks;
     void updateFloatButton();
+    void updateCloseButton();
     void setCloseButtonEnabled(bool);
     void setFloatButtonVisible(bool);
     void setFloatButtonToolTip(const QString &);

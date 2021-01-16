@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -719,4 +719,38 @@ MainWindowBase *Frame::mainWindow() const
 TabWidget *Frame::tabWidget() const
 {
     return m_tabWidget;
+}
+
+///@brief Returns whether all dock widgets have the specified option set
+bool Frame::allDockWidgetsHave(DockWidgetBase::Option option) const
+{
+    const DockWidgetBase::List docks = dockWidgets();
+    return std::all_of(docks.cbegin(), docks.cend(), [option] (DockWidgetBase *dw) {
+        return dw->options() & option;
+    });
+}
+
+///@brief Returns whether at least one dock widget has the specified option set
+bool Frame::anyDockWidgetsHas(DockWidgetBase::Option option) const
+{
+    const DockWidgetBase::List docks = dockWidgets();
+    return std::any_of(docks.cbegin(), docks.cend(), [option] (DockWidgetBase *dw) {
+        return dw->options() & option;
+    });
+}
+
+bool Frame::allDockWidgetsHave(DockWidgetBase::LayoutSaverOption option) const
+{
+    const DockWidgetBase::List docks = dockWidgets();
+    return std::all_of(docks.cbegin(), docks.cend(), [option] (DockWidgetBase *dw) {
+        return dw->layoutSaverOptions() & option;
+    });
+}
+
+bool Frame::anyDockWidgetsHas(DockWidgetBase::LayoutSaverOption option) const
+{
+    const DockWidgetBase::List docks = dockWidgets();
+    return std::any_of(docks.cbegin(), docks.cend(), [option] (DockWidgetBase *dw) {
+        return dw->layoutSaverOptions() & option;
+    });
 }

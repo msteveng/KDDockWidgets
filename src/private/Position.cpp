@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2020-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -126,10 +126,13 @@ void Position::deserialize(const LayoutSaver::Position &lp)
             if (index == -1) {
                 continue; // Skip
             } else {
-                const auto floatingWindows = DockRegistry::self()->floatingWindows();
-                if (index >= 0 && index < floatingWindows.size()) {
-                    FloatingWindow *fw = floatingWindows.at(index);
-                    layout = fw->multiSplitter();
+                auto serializedFw = LayoutSaver::Layout::s_currentLayoutBeingRestored->floatingWindowForIndex(index);
+                if (serializedFw.isValid()) {
+                    if (FloatingWindow *fw = serializedFw.floatingWindowInstance) {
+                        layout = fw->multiSplitter();
+                    } else {
+                        continue;
+                    }
                 } else {
                     qWarning() << "Invalid floating window position to restore" << index;
                     continue;

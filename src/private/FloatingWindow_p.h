@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -18,7 +18,7 @@
 #include "Frame_p.h"
 #include "Draggable_p.h"
 #include "DropArea_p.h"
-#include "Qt5Qt6Compat_p.h"
+#include "kddockwidgets/Qt5Qt6Compat_p.h"
 
 QT_BEGIN_NAMESPACE
 class QAbstractNativeEventFilter;
@@ -97,6 +97,9 @@ public:
      */
     bool hasSingleDockWidget() const;
 
+    /// @brief If this floating window has only one Frame, it's returned, otherwise nullptr
+    Frame* singleFrame() const;
+
     /**
      * @brief Returns whether a deleteLater has already been issued
      */
@@ -130,6 +133,18 @@ public:
      * Returns global coordinates.
      */
     QRect dragRect() const;
+
+    ///@brief Returns whether all dock widgets have the specified option set
+    bool allDockWidgetsHave(DockWidgetBase::Option) const;
+
+    ///@brief Returns whether at least one dock widget has the specified option set
+    bool anyDockWidgetsHas(DockWidgetBase::Option) const;
+
+    ///@brief Returns whether all dock widgets have the specified  layout saver option set
+    bool allDockWidgetsHave(DockWidgetBase::LayoutSaverOption) const;
+
+    ///@brief Returns whether at least one dock widget has the specified layout saver option set
+    bool anyDockWidgetsHas(DockWidgetBase::LayoutSaverOption) const;
 
 Q_SIGNALS:
     void activatedChanged();

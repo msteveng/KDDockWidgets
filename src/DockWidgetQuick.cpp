@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -40,8 +40,8 @@ public:
     QQuickItem *const m_visualItem;
 };
 
-DockWidgetQuick::DockWidgetQuick(const QString &name, Options options)
-    : DockWidgetBase(name, options)
+DockWidgetQuick::DockWidgetQuick(const QString &name, Options options, LayoutSaverOptions layoutSaverOptions)
+    : DockWidgetBase(name, options, layoutSaverOptions)
     , d(new Private(this))
 {
     // To mimic what QtWidgets does when creating a new QWidget.

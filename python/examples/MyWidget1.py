@@ -1,7 +1,7 @@
 #
 # This file is part of KDDockWidgets.
 #
-# SPDX-FileCopyrightText: 2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+# SPDX-FileCopyrightText: 2020-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
 # Author: Renato Araujo Oliveira Filho <renato.araujo@kdab.com>
 #
 # SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -9,7 +9,9 @@
 # Contact KDAB at <info@kdab.com> for commercial licensing options.
 #
 
-from PySide2 import QtWidgets, QtGui
+import PyKDDockWidgets
+
+from PySide import QtWidgets, QtGui
 
 from MyWidget import MyWidget
 

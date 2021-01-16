@@ -24,6 +24,9 @@ You will find more information in these places:
  * [online detailed browsable API reference](https://docs.kdab.com/kddockwidgets)
  * [our example programs](examples/)
 
+We also have an [in browser demo](https://demos.kdab.com/wasm/kddockwidgets/dockwidgets.html). Note
+however that this demo isn't fully featured, as it's running on Qt for WebAssembly.
+
 Features
 ========
 - Provide advanced docking that QDockWidgets doesn't support
@@ -61,6 +64,8 @@ Features
 - Optional minimize and maximize button on the title bar
 - FloatingWindows can be utility windows or full native
 
+Screen capture
+==============
 ![Screen capture](./screencap.gif?raw=true "The docking system in action")
 
 
@@ -100,15 +105,16 @@ The installation directory defaults to `c:\KDAB\KDDockWidgets-<version>` on Wind
 and `/usr/local/KDAB/KDDockWidgets-<version>` on non-Windows.  You can change this
 location by passing the option `-DCMAKE_INSTALL_PREFIX=/install/path` to cmake.
 
-== Using ==
+Using
+=====
 From your CMake project, add
 
     find_package(KDDockWidgets CONFIG)
 
-and link to the imported target KDAB::kddockwidgets.
+and link to the imported target `KDAB::kddockwidgets`.
 That's all you need to do (the imported target also brings in the include directories)
 
-You may also need to point the CMAKE_MODULE_PATH environment variable depending
+You may also need to modify the `CMAKE_MODULE_PATH` environment variable depending
 on where you installed KDDockWidgets.
 
 
@@ -117,10 +123,13 @@ Python Bindings
 Make sure you have pyside2, shiboken2 and shiboken2-generator installed.
 As this time, you cannot get shiboken2-generator because the wheels are not on PyPi.
 To use the wheels do this:
-  % pip3 install \
-      --index-url=http://download.qt.io/official_releases/QtForPython/ \
-      --trusted-host download.qt.io \
-      shiboken2 pyside2 shiboken2_generator
+
+```
+% pip3 install \
+    --index-url=http://download.qt.io/official_releases/QtForPython/ \
+    --trusted-host download.qt.io \
+    shiboken2 pyside2 shiboken2_generator
+```
 
 For more info visit https://doc.qt.io/qtforpython/shiboken2/gettingstarted.html
 
@@ -152,14 +161,12 @@ The QtQuick support will require Qt >= 5.15.
 Qt 6 is supported.
 
 Regarding compilers, whatever toolchain is able to build Qt 5.9 should also be
-fine to build KDDW. Note however that MSVC 2013 isn't supported anymore due to
-compiler crashes.
-
+fine. Note however that MSVC 2013 isn't supported anymore due to compiler crashes.
 
 
 Licensing
 =========
-KDDockWidgets is (C) 2018-2020, Klarälvdalens Datakonsult AB, and is licensed according to
+KDDockWidgets is (C) 2018-2021, Klarälvdalens Datakonsult AB, and is licensed according to
 the terms of the [GPL 2.0](LICENSES/GPL-2.0-only.txt) or [GPL 3.0](LICENSES/GPL-3.0-only.txt).
 
 Contact KDAB at <info@kdab.com> to inquire about commercial licensing.

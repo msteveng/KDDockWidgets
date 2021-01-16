@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -51,10 +51,7 @@ TitleBar::TitleBar(FloatingWindow *parent)
     , m_floatingWindow(parent)
     , m_supportsAutoHide(Config::self().flags() & Config::Flag_AutoHideSupport)
 {
-    connect(m_floatingWindow, &FloatingWindow::numFramesChanged, this, &TitleBar::updateCloseButton);
-    connect(m_floatingWindow, &FloatingWindow::numFramesChanged, this, &TitleBar::updateFloatButton);
-    connect(m_floatingWindow, &FloatingWindow::numFramesChanged, this, &TitleBar::updateMaximizeButton);
-    connect(m_floatingWindow, &FloatingWindow::numFramesChanged, this, &TitleBar::updateMinimizeButton);
+    connect(m_floatingWindow, &FloatingWindow::numFramesChanged, this, &TitleBar::updateButtons);
     connect(m_floatingWindow, &FloatingWindow::windowStateChanged, this, &TitleBar::updateMaximizeButton);
     connect(m_floatingWindow, &FloatingWindow::activatedChanged , this, &TitleBar::isFocusedChanged);
     init();
@@ -69,8 +66,8 @@ void TitleBar::init()
         // repaint
         update();
     });
-    updateCloseButton();
-    updateFloatButton();
+
+    updateButtons();
 }
 
 TitleBar::~TitleBar()
@@ -89,6 +86,15 @@ bool TitleBar::onDoubleClicked()
     }
 
     return false;
+}
+
+void TitleBar::updateButtons()
+{
+    updateCloseButton();
+    updateFloatButton();
+    updateMaximizeButton();
+    updateMinimizeButton();
+    updateAutoHideButton();
 }
 
 void TitleBar::updateCloseButton()
@@ -284,16 +290,40 @@ QIcon TitleBar::icon() const
 
 void TitleBar::onCloseClicked()
 {
+    const bool closeOnlyCurrentTab = Config::self().flags() & Config::Flag_CloseOnlyCurrentTab;
+
     if (m_frame) {
-        if (m_frame->isTheOnlyFrame() && !m_frame->isInMainWindow()) {
-            m_frame->window()->close();
+        if (closeOnlyCurrentTab) {
+            if (DockWidgetBase *dw = m_frame->currentDockWidget()) {
+                dw->close();
+            } else {
+                // Doesn't happen
+                qWarning() << Q_FUNC_INFO << "Frame with no dock widgets";
+            }
         } else {
-            m_frame->close();
+            if (m_frame->isTheOnlyFrame() && !m_frame->isInMainWindow()) {
+                m_frame->window()->close();
+            } else {
+                m_frame->close();
+            }
+        }
+    } else if (m_floatingWindow) {
+
+        if (closeOnlyCurrentTab) {
+            if (Frame *f = m_floatingWindow->singleFrame()) {
+                if (DockWidgetBase *dw = f->currentDockWidget()) {
+                    dw->close();
+                } else {
+                    // Doesn't happen
+                    qWarning() << Q_FUNC_INFO << "Frame with no dock widgets";
+                }
+            } else {
+                m_floatingWindow->close();
+            }
+        } else {
+            m_floatingWindow->close();
         }
     }
-
-    if (m_floatingWindow)
-        m_floatingWindow->close();
 }
 
 bool TitleBar::isFloating() const

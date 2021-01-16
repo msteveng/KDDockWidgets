@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -35,6 +35,8 @@
 
 
 namespace KDDockWidgets {
+
+class FloatingWindow;
 
 template <typename T>
 typename T::List fromVariantList(const QVariantList &listV)
@@ -137,6 +139,8 @@ struct DOCKS_EXPORT LayoutSaver::DockWidget
         return dw;
     }
 
+    bool skipsRestore() const;
+
     QVariantMap toVariantMap() const;
     void fromVariantMap(const QVariantMap &map);
 
@@ -173,6 +177,12 @@ struct LayoutSaver::Frame
 {
     bool isValid() const;
 
+    bool hasSingleDockWidget() const;
+    bool skipsRestore() const;
+
+    /// @brief in case this frame only has one frame, returns the name of that dock widget
+    LayoutSaver::DockWidget::Ptr singleDockWidget() const;
+
     /// Iterates through the layout and patches all absolute sizes. See RestoreOption_RelativeToMainWindow.
     void scaleSizes(const ScalingInfo &scalingInfo);
 
@@ -192,6 +202,11 @@ struct LayoutSaver::Frame
 struct LayoutSaver::MultiSplitter
 {
     bool isValid() const;
+
+    bool hasSingleDockWidget() const;
+    LayoutSaver::DockWidget::Ptr singleDockWidget() const;
+    bool skipsRestore() const;
+
     /// Iterates through the layout and patches all absolute sizes. See RestoreOption_RelativeToMainWindow.
     void scaleSizes(const ScalingInfo &scalingInfo);
 
@@ -208,6 +223,10 @@ struct LayoutSaver::FloatingWindow
 
     bool isValid() const;
 
+    bool hasSingleDockWidget() const;
+    LayoutSaver::DockWidget::Ptr singleDockWidget() const;
+    bool skipsRestore() const;
+
     /// Iterates through the layout and patches all absolute sizes. See RestoreOption_RelativeToMainWindow.
     void scaleSizes(const ScalingInfo &);
 
@@ -221,6 +240,9 @@ struct LayoutSaver::FloatingWindow
     int screenIndex;
     QSize screenSize;  // for relative-size restoring
     bool isVisible = true;
+
+    // The instance that was created during a restore:
+    KDDockWidgets::FloatingWindow *floatingWindowInstance = nullptr;
 };
 
 struct LayoutSaver::MainWindow
@@ -245,6 +267,7 @@ public:
     int screenIndex;
     QSize screenSize;  // for relative-size restoring
     bool isVisible;
+    Qt::WindowState windowState = Qt::WindowNoState;
 
     ScalingInfo scalingInfo;
 };
@@ -301,9 +324,11 @@ public:
     static LayoutSaver::Layout* s_currentLayoutBeingRestored;
 
     LayoutSaver::MainWindow mainWindowForIndex(int index) const;
+    LayoutSaver::FloatingWindow floatingWindowForIndex(int index) const;
 
     QStringList mainWindowNames() const;
     QStringList dockWidgetNames() const;
+    QStringList dockWidgetsToClose() const;
 
     int serializationVersion = KDDOCKWIDGETS_SERIALIZATION_VERSION;
     LayoutSaver::MainWindow::List mainWindows;

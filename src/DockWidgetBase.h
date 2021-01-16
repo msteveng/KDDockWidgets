@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -75,14 +75,24 @@ public:
     enum Option {
         Option_None = 0, ///< No option, the default
         Option_NotClosable = 1, ///< The DockWidget can't be closed on the [x], only programatically
-        Option_NotDockable = 2 ///< The DockWidget can't be docked, it's always floating
+        Option_NotDockable = 2, ///< The DockWidget can't be docked, it's always floating
+        Option_DeleteOnClose = 4 ///< Deletes the DockWidget when closed
+
     };
     Q_DECLARE_FLAGS(Options, Option)
+
+    /// @brief Options which will affect LayoutSaver save/restore
+    enum class LayoutSaverOption {
+        None = 0, ///< Just use the defaults
+        Skip = 1, ///< The dock widget won't participate in save/restore. Currently only available for floating windows.
+    };
+    Q_DECLARE_FLAGS(LayoutSaverOptions, LayoutSaverOption)
 
     enum class IconPlace {
         TitleBar = 1,
         TabBar = 2,
-        All = TitleBar | TabBar
+        ToggleAction = 4,
+        All = ToggleAction | TitleBar | TabBar
     };
     Q_ENUM(IconPlace)
     Q_DECLARE_FLAGS(IconPlaces, IconPlace)
@@ -90,12 +100,15 @@ public:
     /**
      * @brief constructs a new DockWidget
      * @param uniqueName the name of the dockwidget, should be unique. Use title for user visible text.
-     * @param options optional options controlling behaviour
+     * @param options options controlling certain behaviours
+     * @param layoutSaverOptions options to control save/restore
      *
      * There's no parent argument. The DockWidget is either parented to FloatingWindow or MainWindow
      * when visible, or stays without a parent when hidden.
      */
-    explicit DockWidgetBase(const QString &uniqueName, Options options = DockWidgetBase::Options());
+    explicit DockWidgetBase(const QString &uniqueName,
+                            Options options = DockWidgetBase::Options(),
+                            LayoutSaverOptions layoutSaverOptions = LayoutSaverOptions());
 
     ///@brief destructor
     ~DockWidgetBase() override;
@@ -118,11 +131,13 @@ public:
      *
      * @param other The other dock widget to dock into the window.
      * @param location The location to dock.
-     * @param relativeTo The dock widget that the @p location is relative to. If null then the window is considered.
+     * @param relativeTo The dock widget that the @p location is relative to. If null then the window is considered
+     * @param initialOption Allows to specify some extra options that are used while docking.
      * @sa MainWindow::addDockWidget(), DockWidget::addDockWidgetAsTab()
      */
     void addDockWidgetToContainingWindow(DockWidgetBase *other, KDDockWidgets::Location location,
-                                         DockWidgetBase *relativeTo = nullptr);
+                                         DockWidgetBase *relativeTo = nullptr,
+                                         InitialOption initialOption = {});
 
     /**
      * @brief sets the widget which this dock widget hosts.
@@ -195,6 +210,10 @@ public:
      */
     Options options() const;
 
+    /// @brief returns the per-dockwidget options which will affect LayoutSaver
+    /// These are the options which were passed to the constructor
+    KDDockWidgets::DockWidgetBase::LayoutSaverOptions layoutSaverOptions() const;
+
     /**
      * @brief Setter for the options.
      * Only Option_NotClosable is allowed to change after construction. For the other options use
@@ -229,7 +248,7 @@ public:
 
     /**
      * @brief Sets an icon to show on title bars and tab bars.
-     * @param places Specifies where the icon will be shown (TitleBar, TabBar or both)
+     * @param places Specifies where the icon will be shown (TitleBar, TabBar, ToggleAction, or All)
      *
      * By default there's no icon set.
      *
@@ -238,7 +257,7 @@ public:
     void setIcon(const QIcon &icon, IconPlaces places = IconPlace::All);
 
     /**
-     * @brief Returns the dock widget's titlebar or tabbar icon (depending on the passed @p place)
+     * @brief Returns the dock widget's titlebar, tabbar, or toggle action icon (depending on the passed @p place)
      *
      * By default it's null.
      *
@@ -319,7 +338,7 @@ public:
     bool isMainWindow() const;
 
     /**
-     * @brief Returns whether this dock widget is docked into a main window.
+     * @brief Returns whether this dock widget is docked into a main window (as opposed to floating)
      *
      * Note that isFloating() returning false might either mean the dock widget is docked into a
      * main window or into a floating window (groupped/nested with other dock widgets. Use this function
@@ -328,6 +347,7 @@ public:
     bool isInMainWindow() const;
 
     /// @brief Returns the main window this dock widget is in. nullptr if it's not inside a main window
+    /// Also returns nullptr if it's minimized to a sidebar
     MainWindowBase *mainWindow() const;
 
     ///@brief Returns whether This or any child of this dock widget is focused
@@ -347,14 +367,21 @@ public:
      */
     void moveToSideBar();
 
-    /// @brief Returns whether this dock widget is overlayed on top of the main window, instead of
-    /// docked into the layout. This is only relevant when using the auto-hide and side-bar feature.
+    /// @brief Returns whether this dock widget is overlayed from the side-bar.
+    ///
+    /// This is only relevant when using the auto-hide and side-bar feature.
+    /// Not to be confused with "floating", which means top-level window.
     bool isOverlayed() const;
 
     ///@brief Returns whether this dock widget is in a side bar, and which.
     /// SideBarLocation::None is returned if it's not in a sidebar.
     /// This is only relevant when using the auto-hide and side-bar feature.
+    /// @sa isInSideBar
     SideBarLocation sideBarLocation() const;
+
+    /// @brief Returns where this dockwidget is in a sidebar
+    /// Similar to sideBarLocation(), but returns a bool
+    bool isInSideBar() const;
 
     /// @brief Returns whether this floating dock widget knows its previous docked location
     /// Result only makes sense if it's floating.
@@ -372,9 +399,14 @@ public:
     /// nullptr is returned if the dock widget isn't found.
     static DockWidgetBase* byName(const QString &uniqueName);
 
+    /// @brief Returns whether this widget has the LayoutSaverOption::Skip flag
+    bool skipsRestore() const;
+
 Q_SIGNALS:
+#ifdef KDDOCKWIDGETS_QTWIDGETS
     ///@brief signal emitted when the parent changed
     void parentChanged();
+#endif
 
     ///@brief signal emitted when the DockWidget is shown. As in QEvent::Show.
     void shown();

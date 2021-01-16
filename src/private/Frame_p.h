@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -22,6 +22,7 @@
 #include "kddockwidgets/docks_export.h"
 #include "kddockwidgets/QWidgetAdapter.h"
 #include "kddockwidgets/FocusScope.h"
+#include "kddockwidgets/DockWidgetBase.h"
 #include "../LayoutSaver_p.h"
 #include "multisplitter/Widget.h"
 
@@ -239,6 +240,18 @@ public:
      */
     virtual QRect dragRect() const;
 
+    ///@brief Returns whether all dock widgets have the specified option set
+    bool allDockWidgetsHave(DockWidgetBase::Option) const;
+
+    ///@brief Returns whether at least one dock widget has the specified option set
+    bool anyDockWidgetsHas(DockWidgetBase::Option) const;
+
+    ///@brief Returns whether all dock widgets have the specified  layout saver option set
+    bool allDockWidgetsHave(DockWidgetBase::LayoutSaverOption) const;
+
+    ///@brief Returns whether at least one dock widget has the specified layout saver option set
+    bool anyDockWidgetsHas(DockWidgetBase::LayoutSaverOption) const;
+
 Q_SIGNALS:
     void currentDockWidgetChanged(KDDockWidgets::DockWidgetBase *);
     void numDockWidgetsChanged();
@@ -288,7 +301,9 @@ protected:
     virtual DockWidgetBase *dockWidgetAt_impl(int index) const = 0;
     virtual DockWidgetBase *currentDockWidget_impl() const = 0;
     virtual int nonContentsHeight() const = 0;
-
+private:
+    bool m_inCtor = true; // Needs to be initialized early, as pointed out by UBSAN
+protected:
     bool m_inDtor = false;
 
     TabWidget *const m_tabWidget;
@@ -301,7 +316,7 @@ private:
 
     void scheduleDeleteLater();
     bool event(QEvent *) override;
-    bool m_inCtor = true;
+
     DropArea *m_dropArea = nullptr;
     const FrameOptions m_options;
     QPointer<Layouting::Item> m_layoutItem;

@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -12,10 +12,10 @@
 #ifndef KD_DROPINDICATOROVERLAYINTERFACE_P_H
 #define KD_DROPINDICATOROVERLAYINTERFACE_P_H
 
-#include "docks_export.h"
-#include "QWidgetAdapter.h"
+#include "kddockwidgets/docks_export.h"
+#include "kddockwidgets/QWidgetAdapter.h"
 #include "Frame_p.h"
-#include "KDDockWidgets.h"
+#include "kddockwidgets/KDDockWidgets.h"
 
 namespace KDDockWidgets {
 

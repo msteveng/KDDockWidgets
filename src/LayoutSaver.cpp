@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -68,6 +68,9 @@ public:
     bool matchesAffinity(const QStringList &affinities) const {
         return m_affinityNames.isEmpty() || affinities.isEmpty() || DockRegistry::self()->affinitiesMatch(m_affinityNames, affinities);
     }
+
+
+    void floatWidgetsWhichSkipRestore(const QStringList &mainWindowNames);
 
     template <typename T>
     void deserializeWindowGeometry(const T &saved, QWidgetOrQuick *topLevel);
@@ -229,9 +232,12 @@ bool LayoutSaver::restoreLayout(const QByteArray &data)
     if (d->m_restoreOptions & RestoreOption_RelativeToMainWindow)
         layout.scaleSizes();
 
+    d->floatWidgetsWhichSkipRestore(layout.mainWindowNames());
+
     // Hide all dockwidgets and unparent them from any layout before starting restore
     // We only close the stuff that the loaded JSON knows about. Unknown widgets might be newer.
-    d->m_dockRegistry->clear(d->m_dockRegistry->dockWidgets(layout.dockWidgetNames()),
+
+    d->m_dockRegistry->clear(d->m_dockRegistry->dockWidgets(layout.dockWidgetsToClose()),
                              d->m_dockRegistry->mainWindows(layout.mainWindowNames()),
                              d->m_affinityNames);
 
@@ -258,14 +264,15 @@ bool LayoutSaver::restoreLayout(const QByteArray &data)
     }
 
     // 2. Restore FloatingWindows
-    for (const LayoutSaver::FloatingWindow &fw : qAsConst(layout.floatingWindows)) {
-        if (!d->matchesAffinity(fw.affinities))
+    for (LayoutSaver::FloatingWindow &fw : layout.floatingWindows) {
+        if (!d->matchesAffinity(fw.affinities) || fw.skipsRestore())
             continue;
 
         MainWindowBase *parent = fw.parentIndex == -1 ? nullptr
                                                       : DockRegistry::self()->mainwindows().at(fw.parentIndex);
 
         auto floatingWindow = Config::self().frameworkWidgetFactory()->createFloatingWindow(parent);
+        fw.floatingWindowInstance = floatingWindow;
         d->deserializeWindowGeometry(fw, floatingWindow);
         if (!floatingWindow->deserialize(fw)) {
             qWarning() << Q_FUNC_INFO << "Failed to deserialize floating window";
@@ -330,6 +337,24 @@ void LayoutSaver::Private::deserializeWindowGeometry(const T &saved, QWidgetOrQu
 {
     topLevel->setGeometry(saved.geometry);
     topLevel->setVisible(saved.isVisible);
+}
+
+void LayoutSaver::Private::floatWidgetsWhichSkipRestore(const QStringList &mainWindowNames)
+{
+    // Widgets with the DockWidget::LayoutSaverOption::Skip flag skip restore completely.
+    // If they were visible before they need to remain visible now.
+    // If they were previously docked we need to float them, as the main window they were on will
+    // be loading a new layout.
+
+    for (MainWindowBase *mw : DockRegistry::self()->mainWindows(mainWindowNames)) {
+        const KDDockWidgets::DockWidgetBase::List docks = mw->multiSplitter()->dockWidgets();
+        for (auto dw : docks) {
+            if (dw->skipsRestore()) {
+                dw->setFloating(true);
+            }
+        }
+    }
+
 }
 
 void LayoutSaver::Private::deleteEmptyFrames()
@@ -471,6 +496,14 @@ LayoutSaver::MainWindow LayoutSaver::Layout::mainWindowForIndex(int index) const
     return mainWindows.at(index);
 }
 
+LayoutSaver::FloatingWindow LayoutSaver::Layout::floatingWindowForIndex(int index) const
+{
+    if (index < 0 || index >= floatingWindows.size())
+        return {};
+
+    return floatingWindows.at(index);
+}
+
 QStringList LayoutSaver::Layout::mainWindowNames() const
 {
     QStringList names;
@@ -488,6 +521,35 @@ QStringList LayoutSaver::Layout::dockWidgetNames() const
     names.reserve(allDockWidgets.size());
     for (const auto &dw : allDockWidgets) {
         names << dw->uniqueName;
+    }
+
+    return names;
+}
+
+QStringList LayoutSaver::Layout::dockWidgetsToClose() const
+{
+    // Before restoring a layout we close all dock widgets, unless they're a floating window with the DontCloseBeforeRestore flag
+
+    QStringList names;
+    names.reserve(allDockWidgets.size());
+    auto registry = DockRegistry::self();
+    for (const auto &dw : allDockWidgets) {
+        if (DockWidgetBase *dockWidget = registry->dockByName(dw->uniqueName)) {
+
+            bool doClose = true;
+
+            if (dockWidget->skipsRestore()) {
+                if (auto fw = dockWidget->floatingWindow()) {
+                    if (fw->allDockWidgetsHave(DockWidgetBase::LayoutSaverOption::Skip)) {
+                        // All dock widgets in this floating window skips float, so we can honour it for all.
+                        doClose = false;
+                    }
+                }
+            }
+
+            if (doClose)
+                names << dw->uniqueName;
+        }
     }
 
     return names;
@@ -526,6 +588,26 @@ bool LayoutSaver::Frame::isValid() const
     }
 
     return true;
+}
+
+bool LayoutSaver::Frame::hasSingleDockWidget() const
+{
+    return dockWidgets.size() == 1;
+}
+
+bool LayoutSaver::Frame::skipsRestore() const
+{
+    return std::all_of(dockWidgets.cbegin(), dockWidgets.cend(), [] (LayoutSaver::DockWidget::Ptr dw) {
+        return dw->skipsRestore();
+    });
+}
+
+LayoutSaver::DockWidget::Ptr LayoutSaver::Frame::singleDockWidget() const
+{
+    if (!hasSingleDockWidget())
+        return {};
+
+   return dockWidgets.first();
 }
 
 void LayoutSaver::Frame::scaleSizes(const ScalingInfo &scalingInfo)
@@ -583,6 +665,14 @@ void LayoutSaver::DockWidget::scaleSizes(const ScalingInfo &scalingInfo)
     lastPosition.scaleSizes(scalingInfo);
 }
 
+bool LayoutSaver::DockWidget::skipsRestore() const
+{
+    if (DockWidgetBase *dw = DockRegistry::self()->dockByName(uniqueName))
+        return dw->skipsRestore();
+
+    return false;
+}
+
 QVariantMap LayoutSaver::DockWidget::toVariantMap() const
 {
     QVariantMap map;
@@ -619,6 +709,21 @@ bool LayoutSaver::FloatingWindow::isValid() const
     }
 
     return true;
+}
+
+bool LayoutSaver::FloatingWindow::hasSingleDockWidget() const
+{
+    return multiSplitterLayout.hasSingleDockWidget();
+}
+
+LayoutSaver::DockWidget::Ptr LayoutSaver::FloatingWindow::singleDockWidget() const
+{
+    return multiSplitterLayout.singleDockWidget();
+}
+
+bool LayoutSaver::FloatingWindow::skipsRestore() const
+{
+    return multiSplitterLayout.skipsRestore();
 }
 
 void LayoutSaver::FloatingWindow::scaleSizes(const ScalingInfo &scalingInfo)
@@ -698,6 +803,7 @@ QVariantMap LayoutSaver::MainWindow::toVariantMap() const
     map.insert(QStringLiteral("screenSize"), Layouting::sizeToMap(screenSize));
     map.insert(QStringLiteral("isVisible"), isVisible);
     map.insert(QStringLiteral("affinities"), stringListToVariant(affinities));
+    map.insert(QStringLiteral("windowState"), windowState);
 
     for (SideBarLocation loc : { SideBarLocation::North, SideBarLocation::East, SideBarLocation::West, SideBarLocation::South }) {
         const QStringList dockWidgets = dockWidgetsPerSideBar.value(loc);
@@ -718,6 +824,7 @@ void LayoutSaver::MainWindow::fromVariantMap(const QVariantMap &map)
     screenSize = Layouting::mapToSize(map.value(QStringLiteral("screenSize")).toMap());
     isVisible = map.value(QStringLiteral("isVisible")).toBool();
     affinities = variantToStringList(map.value(QStringLiteral("affinities")).toList());
+    windowState = Qt::WindowState(map.value(QStringLiteral("windowState"), Qt::WindowNoState).toInt());
 
     // Compatibility hack. Old json format had a single "affinityName" instead of an "affinities" list:
     const QString affinityName = map.value(QStringLiteral("affinityName")).toString();
@@ -745,6 +852,26 @@ bool LayoutSaver::MultiSplitter::isValid() const
     }*/
 
     return true;
+}
+
+bool LayoutSaver::MultiSplitter::hasSingleDockWidget() const
+{
+    return frames.size() == 1 && frames.cbegin()->hasSingleDockWidget();
+}
+
+LayoutSaver::DockWidget::Ptr LayoutSaver::MultiSplitter::singleDockWidget() const
+{
+    if (!hasSingleDockWidget())
+        return {};
+
+    return frames.cbegin()->singleDockWidget();
+}
+
+bool LayoutSaver::MultiSplitter::skipsRestore() const
+{
+    return std::all_of(frames.cbegin(), frames.cend(), [] (const LayoutSaver::Frame &frame) {
+        return frame.skipsRestore();
+    });
 }
 
 void LayoutSaver::MultiSplitter::scaleSizes(const ScalingInfo &)

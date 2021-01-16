@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2020-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -22,10 +22,10 @@
 #ifndef KDDOCKWIDGETS_MULTISPLITTER_P_H
 #define KDDOCKWIDGETS_MULTISPLITTER_P_H
 
-#include "docks_export.h"
-#include "QWidgetAdapter.h"
-#include "KDDockWidgets.h"
-#include "LayoutSaver_p.h"
+#include "kddockwidgets/docks_export.h"
+#include "kddockwidgets/QWidgetAdapter.h"
+#include "kddockwidgets/KDDockWidgets.h"
+#include "kddockwidgets/private/LayoutSaver_p.h"
 
 
 namespace Layouting {
@@ -206,7 +206,7 @@ public:
     void layoutEqually();
 
     /// @brief overload that just resizes widgets within a sub-tree
-    void layoutEqually(Layouting::ItemContainer *);
+    void layoutEqually(Layouting::ItemBoxContainer *);
 
     /// @brief clears the layout
     void clearLayout();
@@ -229,7 +229,7 @@ private:
      */
     QList<Frame*> framesFrom(QWidgetOrQuick *frameOrMultiSplitter) const;
 
-    Layouting::ItemContainer *rootItem() const;
+    Layouting::ItemBoxContainer *rootItem() const;
 
     // For debug/hardening
     bool validateInputs(QWidgetOrQuick *widget, KDDockWidgets::Location location,
@@ -251,7 +251,7 @@ private:
      */
     void setLayoutMinimumSize(QSize);
 
-    void setRootItem(Layouting::ItemContainer *);
+    void setRootItem(Layouting::ItemBoxContainer *);
 
     /**
      * @brief Like @ref availableLengthForDrop but just returns the total available width or height (depending on @p orientation)
@@ -266,7 +266,7 @@ private:
      */
     QSize availableSize() const;
 
-    Layouting::ItemContainer *m_rootItem = nullptr;
+    Layouting::ItemBoxContainer *m_rootItem = nullptr;
 };
 
 }

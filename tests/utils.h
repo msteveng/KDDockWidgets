@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -95,29 +95,33 @@ struct EnsureTopLevelsDeleted
 {
     EnsureTopLevelsDeleted()
         : m_originalFlags(Config::self().flags())
+        , m_originalInternalFlags(Config::self().internalFlags())
         , m_originalSeparatorThickness(Config::self().separatorThickness())
     {
     }
 
     ~EnsureTopLevelsDeleted()
     {
-        const QWindowList topLevels = qApp->topLevelWindows();
+        qDeleteAll(DockRegistry::self()->floatingWindows(/*includeBeingDeleted=*/ true));
+        qDeleteAll(DockRegistry::self()->dockwidgets());
 
-        auto dr = DockRegistry::self();
-
-        if (!topLevels.isEmpty())
-            qWarning() << "There's still top-level widgets present!" << topLevels
-                       << "\nfloatings:" << dr->floatingWindows()
+        if (!DockRegistry::self()->isEmpty()) {
+            auto dr = DockRegistry::self();
+            qWarning() << "There's still top-level widgets present!"
+                       << "\nfloatings:" << dr->floatingWindows(/*includeBeingDeleted=*/ true)
                        << "\nmainwindows:" << dr->mainWindowsNames()
                        << "\ndocks:" << dr->dockWidgetNames();
+        }
 
         // Other cleanup, since we use this class everywhere
         Config::self().setDockWidgetFactoryFunc(nullptr);
+        Config::self().setInternalFlags(m_originalInternalFlags);
         Config::self().setFlags(m_originalFlags);
         Config::self().setSeparatorThickness(m_originalSeparatorThickness);
     }
 
     const Config::Flags m_originalFlags;
+    const Config::InternalFlags m_originalInternalFlags;
     const int m_originalSeparatorThickness;
 };
 
@@ -132,8 +136,8 @@ std::unique_ptr<MainWindowBase> createMainWindow(QSize sz = {1000, 1000},
 std::unique_ptr<KDDockWidgets::MainWindowBase> createMainWindow(QVector<DockDescriptor> &docks);
 
 KDDockWidgets::DockWidgetBase *createDockWidget(const QString &name, QWidgetOrQuick *w,
-                                                DockWidgetBase::Options options = {}, bool show = true,
-                                                const QString &affinityName = {});
+                                                DockWidgetBase::Options options = {}, DockWidgetBase::LayoutSaverOptions layoutSaverOptions = {},
+                                                bool show = true, const QString &affinityName = {});
 KDDockWidgets::DockWidgetBase *createDockWidget(const QString &name, QColor color = Qt::black);
 
 void nestDockWidget(DockWidgetBase *dock, DropArea *dropArea, Frame *relativeTo,

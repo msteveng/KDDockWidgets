@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -39,8 +39,8 @@ public:
     QVBoxLayout *const layout;
 };
 
-DockWidget::DockWidget(const QString &name, Options options)
-    : DockWidgetBase(name, options)
+DockWidget::DockWidget(const QString &name, Options options, LayoutSaverOptions layoutSaverOptions)
+    : DockWidgetBase(name, options, layoutSaverOptions)
     , d(new Private(this))
 {
     connect(this, &DockWidgetBase::widgetChanged, this, [this] (QWidget *w) {

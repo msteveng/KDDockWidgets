@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -49,7 +49,8 @@ public:
      * when visible, or stays without a parent when hidden. This allows to support docking
      * to different main windows.
      */
-    explicit DockWidget(const QString &uniqueName, Options options = DockWidgetBase::Options());
+    explicit DockWidget(const QString &uniqueName, Options options = DockWidgetBase::Options(),
+                        LayoutSaverOptions layoutSaverOptions = LayoutSaverOptions());
 
     ///@brief destructor
     ~DockWidget() override;

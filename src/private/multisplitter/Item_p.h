@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -28,6 +28,7 @@ namespace Layouting {
 Q_NAMESPACE
 
 class ItemContainer;
+class ItemBoxContainer;
 class Item;
 class Separator;
 class Widget;
@@ -63,6 +64,19 @@ enum class NeighbourSqueezeStrategy {
     ImmediateNeighboursFirst ///< The first neighbour takes as much squeeze as it can, only then the next neighbour is squezed, and so forth
 };
 Q_ENUM_NS(NeighbourSqueezeStrategy)
+
+enum LayoutBorderLocation {
+    LayoutBorderLocation_None = 0,
+    LayoutBorderLocation_North = 1,
+    LayoutBorderLocation_East = 2,
+    LayoutBorderLocation_West = 4,
+    LayoutBorderLocation_South = 8,
+    LayoutBorderLocation_All = LayoutBorderLocation_North | LayoutBorderLocation_East |
+                               LayoutBorderLocation_West | LayoutBorderLocation_South,
+    LayoutBorderLocation_Verticals = LayoutBorderLocation_West | LayoutBorderLocation_East,
+    LayoutBorderLocation_Horizontals = LayoutBorderLocation_North | LayoutBorderLocation_South,
+};
+Q_DECLARE_FLAGS(LayoutBorderLocations, LayoutBorderLocation)
 
 inline int pos(QPoint p, Qt::Orientation o) {
     return o == Qt::Vertical ? p.y()
@@ -218,31 +232,10 @@ class DOCKS_EXPORT_FOR_UNIT_TESTS Item : public QObject
 public:
     typedef QVector<Item*> List;
 
-    enum Location {
-        Location_None,
-        Location_OnLeft, ///> Left docking location
-        Location_OnTop,  ///> Top docking location
-        Location_OnRight, ///> Right docking location
-        Location_OnBottom ///> Bottom docking location
-    };
-    Q_ENUM(Location)
-
-    enum LayoutBorderLocation {
-        LayoutBorderLocation_None = 0,
-        LayoutBorderLocation_North = 1,
-        LayoutBorderLocation_East = 2,
-        LayoutBorderLocation_West = 4,
-        LayoutBorderLocation_South = 8,
-        LayoutBorderLocation_All = LayoutBorderLocation_North | LayoutBorderLocation_East |
-                                   LayoutBorderLocation_West | LayoutBorderLocation_South,
-        LayoutBorderLocation_Verticals = LayoutBorderLocation_West | LayoutBorderLocation_East,
-        LayoutBorderLocation_Horizontals = LayoutBorderLocation_North | LayoutBorderLocation_South,
-    };
-    Q_DECLARE_FLAGS(LayoutBorderLocations, LayoutBorderLocation)
-
     explicit Item(Widget *hostWidget, ItemContainer *parent = nullptr);
     ~Item() override;
 
+    /// @brief returns whether this item is a root container
     bool isRoot() const;
 
     ///@brief Returns whether the item is touching the layout's borders.
@@ -250,8 +243,6 @@ public:
     LayoutBorderLocations adjacentLayoutBorders() const;
 
     virtual int visibleCount_recursive() const;
-    virtual void insertItem(Item *item, Location,
-                            KDDockWidgets::InitialOption = KDDockWidgets::DefaultSizeMode::Fair);
 
     /**
      * @brief No widget can have a minimum size smaller than this, regardless of their minimum size.
@@ -272,11 +263,12 @@ public:
     QRect rect() const;
     bool isContainer() const;
     ItemContainer *parentContainer() const;
+    ItemBoxContainer *parentBoxContainer() const;
     void setMinSize(QSize);
     void setMaxSizeHint(QSize);
     bool isPlaceholder() const;
     void setGeometry(QRect rect);
-    ItemContainer *root() const;
+    ItemBoxContainer *root() const;
     QRect mapToRoot(QRect) const;
     QPoint mapToRoot(QPoint) const;
     int mapToRoot(int p, Qt::Orientation) const;
@@ -332,9 +324,9 @@ protected:
     Q_REQUIRED_RESULT virtual bool checkSanity();
     void setPos(QPoint);
     void setPos(int pos, Qt::Orientation);
-    int position(Qt::Orientation) const;
     const ItemContainer *asContainer() const;
     ItemContainer *asContainer();
+    ItemBoxContainer *asBoxContainer();
     void setLength(int length, Qt::Orientation);
     virtual void setLength_recursive(int length, Qt::Orientation);
     int length(Qt::Orientation) const;
@@ -353,6 +345,7 @@ private Q_SLOTS:
 
 private:
     friend class ItemContainer;
+    friend class ItemBoxContainer;
     void turnIntoPlaceholder();
     bool eventFilter(QObject *o, QEvent *event) override;
     int m_refCount = 0;
@@ -363,6 +356,7 @@ private:
     Widget *m_guest = nullptr;
 };
 
+/// @brief And Item which can contain other Items
 class DOCKS_EXPORT_FOR_UNIT_TESTS ItemContainer : public Item
 {
     Q_OBJECT
@@ -370,9 +364,50 @@ public:
     explicit ItemContainer(Widget *hostWidget, ItemContainer *parent);
     explicit ItemContainer(Widget *hostWidget);
     ~ItemContainer();
+
+    virtual void removeItem(Item *, bool hardRemove = true) = 0;
+    virtual void restore(Item *child) = 0;
+    virtual void onChildMinSizeChanged(Item *child) = 0;
+    virtual void onChildVisibleChanged(Item *child, bool visible) = 0;
+
+    int numVisibleChildren() const;
+    int numChildren() const;
+    bool hasChildren() const;
+    bool hasVisibleChildren(bool excludeBeingInserted = false) const;
+    const List childItems() const;
+    bool isEmpty() const;
+    bool contains(const Item *item) const;
+    Item* itemForObject(const QObject *) const;
+    Item* itemForWidget(const Widget *w) const;
+    Item::List visibleChildren(bool includeBeingInserted = false) const;
+    Item::List items_recursive() const;
+    bool contains_recursive(const Item *item) const;
+    int visibleCount_recursive() const override;
+    int count_recursive() const;
+protected:
+    bool hasSingleVisibleItem() const;
+
+    Item::List m_children;
+private:
+    struct Private;
+    Private *const d;
+};
+
+/// @brief A container for items which can either be vertical or horizontal
+///
+/// Similar analogy to QBoxLayout
+class DOCKS_EXPORT_FOR_UNIT_TESTS ItemBoxContainer : public ItemContainer
+{
+    Q_OBJECT
+public:
+    explicit ItemBoxContainer(Widget *hostWidget, ItemContainer *parent);
+    explicit ItemBoxContainer(Widget *hostWidget);
+    ~ItemBoxContainer();
     void insertItem(Item *item, int index, KDDockWidgets::InitialOption option = KDDockWidgets::DefaultSizeMode::Fair);
-    void insertItem(Item *item, Location,
-                    KDDockWidgets::InitialOption = {}) override;
+    void insertItem(Item *item, KDDockWidgets::Location, KDDockWidgets::InitialOption = {});
+
+    static void insertItemRelativeTo(Item *item, Item *relativeTo, KDDockWidgets::Location,
+                                     KDDockWidgets::InitialOption = KDDockWidgets::DefaultSizeMode::Fair);
 
     void requestSeparatorMove(Separator *separator, int delta);
     int minPosForSeparator(Separator *, bool honourMax = true) const;
@@ -382,47 +417,32 @@ public:
     void requestEqualSize(Separator *separator);
     void layoutEqually();
     void layoutEqually_recursive();
-    void removeItem(Item *, bool hardRemove = true);
-    bool contains(const Item *item) const;
-    bool contains_recursive(const Item *item) const;
-    int visibleCount_recursive() const override;
-    int count_recursive() const;
+    void removeItem(Item *, bool hardRemove = true) override;
     QSize minSize() const override;
     QSize maxSizeHint() const override;
     QSize availableSize() const;
-    Item* itemForObject(const QObject *) const;
-    Item* itemForWidget(const Widget *w) const;
-    Item::List items_recursive() const;
     Q_REQUIRED_RESULT bool checkSanity() override;
     void dumpLayout(int level = 0) override;
     void setSize_recursive(QSize newSize, ChildrenResizeStrategy strategy = ChildrenResizeStrategy::Percentage) override;
-    QRect suggestedDropRect(const Item *item, const Item *relativeTo, Location) const;
+    QRect suggestedDropRect(const Item *item, const Item *relativeTo, KDDockWidgets::Location) const;
     QVariantMap toVariantMap() const override;
     void fillFromVariantMap(const QVariantMap &map, const QHash<QString, Widget *> &widgets) override;
     void clear();
     Qt::Orientation orientation() const;
     bool isVertical() const;
     bool isHorizontal() const;
-    int numChildren() const;
-    int numVisibleChildren() const;
-    bool isEmpty() const;
     int length() const;
-    QRect rect() const;
 private:
     bool hasOrientation() const;
-    bool hasChildren() const;
-    bool hasVisibleChildren(bool excludeBeingInserted = false) const;
     int indexOfVisibleChild(const Item *) const;
-    const List childItems() const;
+    void restore(Item *) override;
     void restoreChild(Item *, NeighbourSqueezeStrategy neighbourSqueezeStrategy = NeighbourSqueezeStrategy::AllNeighbours);
 
     void setGeometry_recursive(QRect rect) override;
 
-    ItemContainer *convertChildToContainer(Item *leaf);
-    bool hasOrientationFor(Location) const;
-    Item::List visibleChildren(bool includeBeingInserted = false) const;
+    ItemBoxContainer *convertChildToContainer(Item *leaf);
+    bool hasOrientationFor(KDDockWidgets::Location) const;
     int usableLength() const;
-    bool hasSingleVisibleItem() const;
     void setChildren(const Item::List &children, Qt::Orientation o);
     void setOrientation(Qt::Orientation);
     void updateChildPercentages();
@@ -469,14 +489,14 @@ private:
     int availableToGrowOnSide(const Item *child, Side) const;
     int availableToSqueezeOnSide_recursive(const Item *child, Side, Qt::Orientation) const;
     int availableToGrowOnSide_recursive(const Item *child, Side, Qt::Orientation) const;
-    void onChildMinSizeChanged(Item *child);
-    void onChildVisibleChanged(Item *child, bool visible);
+    void onChildMinSizeChanged(Item *child) override;
+    void onChildVisibleChanged(Item *child, bool visible) override;
     void updateSizeConstraints();
     SizingInfo::List sizes(bool ignoreBeingInserted = false) const;
     QVector<int> calculateSqueezes(SizingInfo::List::ConstIterator begin,
                                    SizingInfo::List::ConstIterator end, int needed,
                                    NeighbourSqueezeStrategy, bool reversed = false) const;
-    QRect suggestedDropRectFallback(const Item *item, const Item *relativeTo, Location) const;
+    QRect suggestedDropRectFallback(const Item *item, const Item *relativeTo, KDDockWidgets::Location) const;
     void positionItems();
     void positionItems_recursive();
     void positionItems(SizingInfo::List &sizes);

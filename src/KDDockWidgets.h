@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -31,7 +31,7 @@
 
 namespace Layouting {
 class Item;
-class ItemContainer;
+class ItemBoxContainer;
 }
 
 namespace KDDockWidgets
@@ -62,6 +62,13 @@ namespace KDDockWidgets
         Fair, ///< Gives an equal relative size as the items that are already in the layout
         FairButFloor, ///< Equal to fair, but if the item we're adding is smaller than the fair suggestion, then that small size is used.
         None, ///< Don't do any sizing
+    };
+
+    ///@brief Only here for source-compat with v1.2. Do not use.
+    ///Use InitialVisibilityOption instead.
+    enum AddingOption {
+        AddingOption_None = 0,
+        AddingOption_StartHidden
     };
 
     enum class InitialVisibilityOption {
@@ -95,6 +102,13 @@ namespace KDDockWidgets
             : visibility(v)
             , preferredSize(size)
         {}
+
+        QT_DEPRECATED_X("AddingOption is deprecated and will be removed in v1.5. Use InitialVisibilityOption instead.")
+        InitialOption(AddingOption opt)
+            : visibility(opt == AddingOption_StartHidden ? InitialVisibilityOption::StartHidden
+                                                         : InitialVisibilityOption::StartVisible)
+        {
+        }
 
         bool startsHidden() const {
             return visibility == InitialVisibilityOption::StartHidden;
@@ -130,7 +144,7 @@ namespace KDDockWidgets
 
     private:
         friend class Layouting::Item;
-        friend class Layouting::ItemContainer;
+        friend class Layouting::ItemBoxContainer;
         friend class KDDockWidgets::MultiSplitter;
         friend class KDDockWidgets::DropArea;
 

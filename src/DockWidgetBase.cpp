@@ -1,7 +1,7 @@
 /*
   This file is part of KDDockWidgets.
 
-  SPDX-FileCopyrightText: 2019-2020 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+  SPDX-FileCopyrightText: 2019-2021 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
   Author: Sérgio Martins <sergio.martins@kdab.com>
 
   SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only
@@ -40,11 +40,13 @@ using namespace KDDockWidgets;
 class DockWidgetBase::Private
 {
 public:
-    Private(const QString &dockName, DockWidgetBase::Options options_, DockWidgetBase *qq)
+    Private(const QString &dockName, DockWidgetBase::Options options_,
+            LayoutSaverOptions layoutSaverOptions_, DockWidgetBase *qq)
         : name(dockName)
         , title(dockName)
         , q(qq)
         , options(options_)
+        , layoutSaverOptions(layoutSaverOptions_)
         , toggleAction(new QAction(q))
         , floatAction(new QAction(q))
     {
@@ -98,6 +100,11 @@ public:
         return nullptr;
     }
 
+    SideBar* sideBar() const
+    {
+        return DockRegistry::self()->sideBarForDockWidget(q);
+    }
+
     QPoint defaultCenterPosForFloating();
 
     void updateTitle();
@@ -126,6 +133,7 @@ public:
     QWidgetOrQuick *widget = nullptr;
     DockWidgetBase *const q;
     DockWidgetBase::Options options;
+    const LayoutSaverOptions layoutSaverOptions;
     QAction *const toggleAction;
     QAction *const floatAction;
     LastPositions m_lastPositions;
@@ -135,13 +143,13 @@ public:
     QSize m_lastOverlayedSize = QSize(0, 0);
 };
 
-DockWidgetBase::DockWidgetBase(const QString &name, Options options)
+DockWidgetBase::DockWidgetBase(const QString &name, Options options,
+                               LayoutSaverOptions layoutSaverOptions)
     : QWidgetAdapter(nullptr, Qt::Tool)
-    , d(new Private(name, options, this))
+    , d(new Private(name, options, layoutSaverOptions, this))
 {
     d->init();
     DockRegistry::self()->registerDockWidget(this);
-    qCDebug(creation) << "DockWidget" << this;
 
     if (name.isEmpty())
         qWarning() << Q_FUNC_INFO << "Name can't be null";
@@ -153,13 +161,11 @@ DockWidgetBase::DockWidgetBase(const QString &name, Options options)
 DockWidgetBase::~DockWidgetBase()
 {
     DockRegistry::self()->unregisterDockWidget(this);
-    qCDebug(creation) << "~DockWidget" << this;
     delete d;
 }
 
 void DockWidgetBase::addDockWidgetAsTab(DockWidgetBase *other, InitialOption option)
 {
-    qCDebug(addwidget) << Q_FUNC_INFO << other;
     if (other == this) {
         qWarning() << Q_FUNC_INFO << "Refusing to add dock widget into itself" << other;
         return;
@@ -205,11 +211,14 @@ void DockWidgetBase::addDockWidgetAsTab(DockWidgetBase *other, InitialOption opt
     frame->addWidget(other, option);
 }
 
-void DockWidgetBase::addDockWidgetToContainingWindow(DockWidgetBase *other, Location location, DockWidgetBase *relativeTo)
+void DockWidgetBase::addDockWidgetToContainingWindow(DockWidgetBase *other,
+                                                     Location location,
+                                                     DockWidgetBase *relativeTo,
+                                                     InitialOption initialOption)
 {
-    qCDebug(addwidget) << Q_FUNC_INFO << other << location << relativeTo;
-    if (qobject_cast<MainWindowBase*>(window())) {
-        qWarning() << Q_FUNC_INFO << "Just use MainWindow::addWidget() directly. This function is for floating nested windows only.";
+    if (auto mainWindow = qobject_cast<MainWindowBase*>(window())) {
+        // It's inside a main window. Simply use the main window API.
+        mainWindow->addDockWidget(other, location, relativeTo, initialOption);
         return;
     }
 
@@ -229,7 +238,7 @@ void DockWidgetBase::addDockWidgetToContainingWindow(DockWidgetBase *other, Loca
         morphIntoFloatingWindow();
 
     if (auto fw = floatingWindow()) {
-        fw->dropArea()->addDockWidget(other, location, relativeTo);
+        fw->dropArea()->addDockWidget(other, location, relativeTo, initialOption);
     } else {
         qWarning() << Q_FUNC_INFO << "Couldn't find floating nested window";
     }
@@ -238,7 +247,6 @@ void DockWidgetBase::addDockWidgetToContainingWindow(DockWidgetBase *other, Loca
 void DockWidgetBase::setWidget(QWidgetOrQuick *w)
 {
     Q_ASSERT(w);
-    qCDebug(addwidget) << Q_FUNC_INFO << w;
     if (w == d->widget)
         return;
 
@@ -344,6 +352,11 @@ DockWidgetBase::Options DockWidgetBase::options() const
     return d->options;
 }
 
+DockWidgetBase::LayoutSaverOptions DockWidgetBase::layoutSaverOptions() const
+{
+    return d->layoutSaverOptions;
+}
+
 void DockWidgetBase::setOptions(Options options)
 {
     if ((d->options & Option_NotDockable) != (options & Option_NotDockable)) {
@@ -355,7 +368,7 @@ void DockWidgetBase::setOptions(Options options)
         d->options = options;
         Q_EMIT optionsChanged(options);
         if (auto tb = titleBar())
-            tb->updateCloseButton();
+            tb->updateButtons();
     }
 }
 
@@ -393,6 +406,9 @@ void DockWidgetBase::setIcon(const QIcon &icon, IconPlaces places)
     if (places & IconPlace::TabBar)
         d->tabBarIcon = icon;
 
+    if (places & IconPlace::ToggleAction)
+        d->toggleAction->setIcon(icon);
+
     Q_EMIT iconChanged();
 }
 
@@ -403,6 +419,9 @@ QIcon DockWidgetBase::icon(IconPlace place) const
 
     if (place == IconPlace::TabBar)
         return d->tabBarIcon;
+
+    if (place == IconPlace::ToggleAction)
+        return d->toggleAction->icon();
 
     return {};
 }
@@ -518,6 +537,11 @@ SideBarLocation DockWidgetBase::sideBarLocation() const
     return DockRegistry::self()->sideBarLocationForDockWidget(this);
 }
 
+bool DockWidgetBase::isInSideBar() const
+{
+    return sideBarLocation() != SideBarLocation::None;
+}
+
 bool DockWidgetBase::hasPreviousDockedLocation() const
 {
     return d->m_lastPositions.isValid();
@@ -533,11 +557,13 @@ DockWidgetBase *DockWidgetBase::byName(const QString &uniqueName)
     return DockRegistry::self()->dockByName(uniqueName);
 }
 
+bool DockWidgetBase::skipsRestore() const
+{
+    return d->layoutSaverOptions & LayoutSaverOption::Skip;
+}
+
 FloatingWindow *DockWidgetBase::morphIntoFloatingWindow()
 {
-    qCDebug(creation) << "DockWidget::morphIntoFloatingWindow() this=" << this
-                      << "; visible=" << isVisible();
-
     if (auto fw = floatingWindow())
         return fw; // Nothing to do
 
@@ -589,7 +615,6 @@ FloatingWindow *DockWidgetBase::floatingWindow() const
 
 void DockWidgetBase::addPlaceholderItem(Layouting::Item *item)
 {
-    qCDebug(placeholder) << Q_FUNC_INFO << this << item;
     Q_ASSERT(item);
     d->m_lastPositions.addPosition(item);
 }
@@ -644,10 +669,16 @@ void DockWidgetBase::Private::updateTitle()
 
 void DockWidgetBase::Private::toggle(bool enabled)
 {
-    if (enabled) {
-        show();
+    if (SideBar *sb = sideBar()) {
+        // The widget is in the sidebar, let's toggle its overlayed state
+        sb->toggleOverlay(q);
     } else {
-        q->close();
+        // The most common case. The dock widget is not in the sidebar. just close or open it.
+        if (enabled) {
+            show();
+        } else {
+            q->close();
+        }
     }
 }
 
@@ -696,7 +727,6 @@ void DockWidgetBase::Private::close()
         m_lastPositions.setLastFloatingGeometry(q->window()->geometry());
     }
 
-    qCDebug(hiding) << "DockWidget::close" << this;
     saveTabIndex();
 
     // Do some cleaning. Widget is hidden, but we must hide the tab containing it.
@@ -708,6 +738,9 @@ void DockWidgetBase::Private::close()
             sb->removeDockWidget(q);
         }
     }
+
+    if (options & DockWidgetBase::Option_DeleteOnClose)
+        q->deleteLater();
 }
 
 bool DockWidgetBase::Private::restoreToPreviousPosition()
@@ -731,7 +764,6 @@ void DockWidgetBase::Private::maybeRestoreToPreviousPosition()
         return;
 
     Layouting::Item *layoutItem = m_lastPositions.lastItem();
-    qCDebug(placeholder) << Q_FUNC_INFO << layoutItem << m_lastPositions;
     if (!layoutItem)
         return; // nothing to do, no last position
 
@@ -743,7 +775,6 @@ void DockWidgetBase::Private::maybeRestoreToPreviousPosition()
     if (frame && frame->QWidgetAdapter::parentWidget() == DockRegistry::self()->layoutForItem(layoutItem)) {
         // There's a frame already. Means the DockWidget was hidden instead of closed.
         // Nothing to do, the dock widget will simply be shown
-        qCDebug(placeholder) << Q_FUNC_INFO << "Already had frame.";
         return;
     }
 
@@ -751,7 +782,6 @@ void DockWidgetBase::Private::maybeRestoreToPreviousPosition()
 
     if (q->parentWidget()) {
         // The QEvent::Show is due to it being made floating. Nothing to restore.
-        qCDebug(placeholder) << Q_FUNC_INFO << "Already had parentWidget";
         return;
     }
 
@@ -778,7 +808,12 @@ void DockWidgetBase::Private::show()
 
 void DockWidgetBase::onParentChanged()
 {
+#ifdef KDDOCKWIDGETS_QTWIDGETS
+    // TODO: In v1.4, remove this part and use the signal emitting the arg
     Q_EMIT parentChanged();
+#else
+    Q_EMIT parentChanged(this);
+#endif
     d->updateToggleAction();
     d->updateFloatAction();
 }
